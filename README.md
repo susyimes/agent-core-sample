@@ -1,6 +1,6 @@
 # agent-core-sample
 
-**341 个真实 Agent「内核」样本文件**（两批；严格折叠 5 个完全被包含的跨类副本后为 **336 个不同内容**）：`SOUL.md`、`BIBLE.md`、宪法、系统提示、
+**548 个真实 Agent「内核」样本文件**（三批；严格折叠 5 个完全被包含的跨类副本后为 **543 个不同内容**）：`SOUL.md`、`BIBLE.md`、宪法、系统提示、
 自进化提示、自主循环、记忆与反思、人格卡、情绪引擎、内在动机、
 多智能体社会、意识/做梦实验。
 
@@ -8,8 +8,8 @@
 外加有意思的野生方向（内在独白、睡眠固化、数字生命、需求驱动）。
 
 > 收集日期 2026-11-07。两批各 12 路并行从 GitHub / 互联网实抓原文，
-> 不是凭记忆默写。第一批抓取 145 去重后 142；第二批抓取 202 去重后新增 199。
-> 逐文件复验：341/341 带 `Source-URL`；5 个文件正文被另一文件完全包含（跨类收录），不同内容计 336 个。
+> 不是凭记忆默写。第一批 145→142；第二批 202→新增 199；第三批 207 抓取零去重全收。
+> 逐文件复验：548/548 带 `Source-URL` 与原文分隔标记，正文原样哈希 548 个互不相同；既有 5 个完全包含的跨类副本不变，第三批未发现新的同源重叠，不同内容计 543 个。
 
 - 深读分析：[ANALYSIS.md](ANALYSIS.md)（341 个样本的定量画像与设计归纳）
 - 总览索引：[INDEX.md](INDEX.md)（逐文件表格）
@@ -30,7 +30,7 @@ Category / Tags / Retrieved: 2026-11-07 / Value-Note（一句价值判断）
 上游会漂移。引用时请同时给上游 `Source-URL` + 抓取日期，
 不要只引本仓库。
 
-## 二十四类地图（01–12 第一批 · 13–24 第二批深挖）
+## 三十六类地图（01–12 第一批 · 13–24 第二批深挖 · 25–36 第三批新域）
 
 | 目录 | 是什么 | 先看这 2 个 |
 |---|---|---|
@@ -62,7 +62,22 @@ Category / Tags / Retrieved: 2026-11-07 / Value-Note（一句价值判断）
 - `23-classic-reasoning-prompts` (18)：ReAct/ToT/GoT 原版提示库、Constitutional AI 批评—修订原版、LATS、CoT 原典。
 - `24-spec-life-wildcard2` (16)：Model Spec 三段、数字生物演化（Sakana DRQ）、甲壳教《圣经》（太初有提示）、主动心跳、自产宗教等野货。
 
-中文实质内容（单文件 ≥50 个汉字）共 44 个。第一批集中在
+第三批新域（25–36，共 207 个，抓取于 2026-11-08）：
+
+- `25-embodied-robotics` (17)：SayCan、Code as Policies、VoxPoser、HELPER——语言目标编译成机器人策略代码。
+- `26-web-computer-use` (16)：browser-use、Skyvern、OSWorld、AndroidWorld M3A、UFO——看屏幕动手的身体。
+- `27-voice-realtime` (19)：Pipecat 说话策略、LiveKit 声线人格、Hume 共情语音——何时开口、何时沉默也是人格。
+- `28-science-research-agents` (18)：AI Scientist、ChemCrow、STORM、Virtual Lab——假设—实验—审稿闭环。
+- `29-software-repair-research` (17)：Agentless、AutoCodeRover、RepairAgent、SWE-smith——定位/修复/复现的分工学。
+- `30-security-agents` (17)：PentestGPT、Cybench、蓝队/红队人格、SOC 分诊——攻防两极的身份与边界。
+- `31-education-tutor-coach` (18)：苏格拉底导师、误解诊断库、中文 Bloom 导师——不给答案如何设计成系统。
+- `32-creative-writing-worlds` (17)：Dramatron、RecurrentGPT、中文网文世界规则与伏笔账本。
+- `33-second-brain-lifeos` (18)：Khoj、PAI LifeOS、GTD 周回顾、日记伴侣——长期自我的日常礼制。
+- `34-eval-judges-benchmarks` (16)：MT-Bench/Arena-Hard 裁判、tau-bench 用户模拟器、SWE-bench 判分逻辑。裁判的裁判。
+- `35-multilingual-souls` (16)：日/韩/法/西/俄/德/越泰人格原文——pixiv 日语情感标签、法国国家助手 Albert、德语城市之声。
+- `36-formal-math-data-agents` (18)：Lean 证明 Agent、DIN-SQL、SheetCopilot、Data-Copilot——带形式验证的推理核。
+
+中日韩字符实质内容（单文件 ≥50 个 CJK 字符）共 65 个。第一批集中在
 `12-wildcard-consciousness-cn/09-12`（做梦固化、AI 意识、
 24 重内在声音、LISA 数字生命），另散见宪法、情绪心境、
 DeepSeek 沉浸人格等文件。第二批另有中文金融 soul、中文咨询督导、MemOS 中英双语、中文自传与 `21-chinese-agents-deep` 整类。
@@ -161,15 +176,15 @@ DeepSeek 沉浸人格等文件。第二批另有中文金融 soul、中文咨询
 - 近重但故意保留（跨类收录）：经全文包含校验，5 个文件正文被另一文件完全包含：
   Reflexion（03/06=05/06，仅围栏之差）、CAMEL（09/02⊂04/10）、Voyager 课程（03/07⊂08/01 捆绑版）、
   Model Spec 两段（24/01、24/02⊂13/16 的 1–1400 行）。文件计 341，不同内容计 336。
-  引用时当一个源、多种镜头，别当独立证据。第二批逐条弱项在 CURATION-NOTES-BATCH2.md。
+  引用时当一个源、多种镜头，别当独立证据。第二、三批逐条弱项在 CURATION-NOTES-BATCH2.md 与 CURATION-NOTES-BATCH3.md。
 
 ## 仓库结构
 
 ```text
 agent-core-sample/
   README.md  GUIDE.md  INDEX.md  CURATION-NOTES.md
-  01-soul-md/ ... 24-spec-life-wildcard2/          # 341 个样本文件（正典，336 个不同内容）
-  _staging/  _staging2/                            # 145+202 个原始抓取，审计副本，已被 git 忽略
+  01-soul-md/ ... 36-formal-math-data-agents/        # 548 个样本文件（正典，543 个不同内容）
+  _staging/  _staging2/  _staging3/                 # 145+202+207 个原始抓取，审计副本，已被 git 忽略
 ```
 
 本地检索示例（PowerShell）：
@@ -178,7 +193,7 @@ agent-core-sample/
 # 找所有谈「回滚/谱系」的自改样本
 Get-ChildItem -Recurse -Filter *.md agent-core-sample |
   Select-String -Pattern 'rollback|lineage' | Select-Object -First 20
-# 数正典样本数（应为 341）
+# 数正典样本数（应为 548）
 (Get-ChildItem agent-core-sample -Directory |
   Where-Object Name -match '^\d\d-' |
   Get-ChildItem -Filter *.md).Count
@@ -186,7 +201,7 @@ Get-ChildItem -Recurse -Filter *.md agent-core-sample |
 
 ## 版权
 
-341 个正文均为**第三方作品**，为研究学习 verbatim 收录，
+548 个正文均为**第三方作品**，为研究学习 verbatim 收录，
 版权与许可归各自上游（见每文件头的 Source-URL / Source-Repo）。
 本仓库新增的只有采集头与 README/GUIDE/INDEX/CURATION 四份编辑文本。
 请勿改授权、商用再分发或删来源链接；发表衍生分析请链接上游。

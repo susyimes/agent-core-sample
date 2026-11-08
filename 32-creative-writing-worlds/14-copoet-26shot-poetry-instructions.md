@@ -1,0 +1,67 @@
+# CoPoet / creative-instructions - 26-shot prompt for collaborative poetry under formal instructions (rhyme, end-word, metaphor, haiku)
+
+Title: CoPoet / creative-instructions - 26-shot prompt for collaborative poetry under formal instructions (rhyme, end-word, metaphor, haiku)
+Source-URL: https://github.com/vishakhpk/creative-instructions/blob/main/eval_scripts/26-shot-creative-instructions
+Source-Repo-or-Site: vishakhpk/creative-instructions (Chakrabarty et al., CoPoet, EMNLP 2022)
+Original-Path: eval_scripts/26-shot-creative-instructions (branch: main)
+Category: 32-creative-writing-worlds/poetry-agents
+Tags: copoet, poetry, instruction-tuning, few-shot, rhyme-constraint, metaphor, haiku, collaborative-writing
+Retrieved: 2026-11-08
+Value-Note: Poetry as controllable craft: the poet-agent is steered by atomic instructions (end in X, rhyme with Y, metaphor about Z, continue this line) instead of autocomplete - formal constraint following as the creative drive. Distinct from 15- OpenELM poetry genotype evolution.
+Raw-URL: https://raw.githubusercontent.com/vishakhpk/creative-instructions/main/eval_scripts/26-shot-creative-instructions
+
+--- ORIGINAL ---
+~~~~text
+1) Instruction: Generate a poetic sentence that ends in  'shore'
+Output:  Divided, till his rescued gain their shore.
+2) Instruction: Write a poetic sentence that ends in a word which rhymes with 'replace'
+Output: Diminishing for me, with delicate grace.
+3) Instruction: Generate a poetic sentence that ends in  'neglects'
+Output:  Where honour due and reverence none neglects
+4) Instruction: Generate a poetic sentence about 'challenge' and ending in 'sneer'
+Output:  Against a fetching price, mounted their challenge, their gentle sneer.
+5) Instruction: Generate a poetic sentence that ends in  'sand'
+Output: And all its strength may not suffice to move a single grain of sand
+6) Write a next sentence in a poetry given the previous sentence 'The winds blow strong, nature's cold breath'
+Output: At me they blow for so long, what approaches is death 
+7) Instruction: Write a poetic sentence that ends in a word which rhymes with 'blonde'
+Output: That stretches there to the horizon and beyond. 
+8 ) Instruction: Write a poetic sentence about 'deliriums'
+Output: And in my mad and burning deliriums.
+9) Instruction: Write a haiku that speaks of 'natural light fades'
+Output: As natural light fades / and clinical lights switch on / our outlook changes.
+10) Instruction: Write a next sentence in a poetry given the previous sentence 'A culture run by business and vultures'
+Output: Where your value is decided by bankers 
+11)  Instruction: Write a metaphor about 'gratitude'
+Output: Gratitude is a burden, and all burdens are made to be cast off.
+12) Instruction: Write a simile that speaks of 'breath'
+Output: Her breath is like the fragrant breeze. 
+13) Instruction: Generate a poetic sentence about 'dawn' and ending in 'sweet'
+Output: At the dawn she is sleeping too sweet. 
+14) Instruction: Write a haiku that includes the word 'morning fog'
+Output: Smoke from the foothills / fades into the morning fog / the fire burns on.
+15) Instruction: Generate a simile about 'ringing of church bell'
+Output: The church bells rang like a thief in the night 
+16) Instruction: Generate a next sentence in a poetry given the previous sentence 'You holding a flower that'
+Output: Make my heart into a butterfly 
+17) Instruction: Write a poetic sentence that contains the word 'mixture' and ending in 'blue'
+Output: It stains us all in violet hues - a mixture of red and blue. 
+18) Instruction: Generate a metaphor about 'darkness'
+Output: Darkness is a prison. 
+19) Instruction: Write a poetic sentence that speaks of 'armor' and ending in 'languish'
+Output: Now in stone armor I hopelessly languish.
+20) Instruction: Write a next sentence in a poetry given the previous sentence 'I already see the canvas full'
+Output: Your beauty spilling out 
+21) Instruction: Write a poetic sentence that ends in a word which rhymes with 'shaft'
+Output: And the dull twanging bowstring, and the raft. 
+22) Instruction: Write a poetic sentence ending in 'chest'
+Output: Aimlessly floating around your deflated chest.
+23) Instruction: Write a poetic sentence that ends in a word which rhymes with 'motion'
+Output: I came into this world to see the ocean. 
+24) Instruction: Generate a poetic sentence about 'whip' showcasing onomatopoeia
+Output: Who responds to the crack of the whip. 
+25) Instruction: Generate a metaphor about 'anxiety'
+Output: Anxiety is a freight train as it runs over a deer. 
+26) Instruction: Write a simile about 'adversity'
+Output: Adversity is like a strong wind
+~~~~
