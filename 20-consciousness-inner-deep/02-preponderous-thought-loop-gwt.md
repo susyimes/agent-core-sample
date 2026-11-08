@@ -1,0 +1,517 @@
+Title: Artificial Consciousness Simulation Framework - ThoughtLoop (GWT/CTM workspace cycle + RPT critique)
+Source-URL: https://github.com/Preponderous-Software/artificial-consciousness-simulation-framework/blob/main/consciousness-sim/core/thought_loop.py
+Source-Repo-or-Site: github.com/Preponderous-Software/artificial-consciousness-simulation-framework
+Original-Path: consciousness-sim/core/thought_loop.py (branch: main; raw: https://raw.githubusercontent.com/Preponderous-Software/artificial-consciousness-simulation-framework/main/consciousness-sim/core/thought_loop.py)
+Category: consciousness / thought-loop / inner-life
+Tags: global workspace, CTM, recurrent processing, thought loop, metacognition, en
+Retrieved: 2026-11-07
+Value-Note: Indefinite LLM thought loop explicitly mapped to Baars GWT / Blum CTM in docstrings, with honest gap notes (no specialist competition, no ignition) and an optional second-pass critique as literal RPT feedback. Prompt txts alone were too small; this cycle is the substantive core.
+
+--- ORIGINAL ---
+
+```python
+"""Autonomous thought loop that drives generation, memory updates, and reflection triggers.
+
+Theory mapping — GWT (Baars 1988) / CTM (Blum & Blum 2022): run_cycle()
+is the serialised workspace update — one thought occupies the global workspace
+per cycle, analogous to CTM's single-slot global broadcast. Long-term memory
+retrieval before generation partially implements GWT-3 (globally broadcast
+priors available to the generator).
+Gap: no parallel specialist competition for workspace access (GWT-2/CTM);
+all modules are called sequentially by the loop rather than competing. No
+ignition threshold (GNWT). PP-1 partially implemented via continuity-prior
+prediction error (see _PREDICTION_ERROR_BOOST); no model-parameter update
+from errors (full PP would revise the prior over time).
+
+RPT-2 (Lamme 2006): when `rpt_critique` is enabled, `_critique_and_refine()`
+adds an optional second LLM pass — a later stage (critique) that modulates
+the earlier representation (the raw thought) before it is rendered, which is
+literal feedback in the RPT sense (see #93 / INDICATORS.md RPT-2, status ◑).
+Gap: the "later stage" is the same model issuing a second call, not a
+distinct higher-cortical abstraction; still no true within-cycle recurrence.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+import random
+import time
+from dataclasses import dataclass, field
+from typing import Any
+from pathlib import Path
+
+from core.identity import IdentityDocument
+from core.inner_voice import InnerVoice
+from core.metacognition import MetacognitiveMonitor
+from core.reflection import ReflectionEngine
+from llm.perception import Perception, PerceptionProvider, render_perception_block
+from llm.provider import LLMProvider
+from llm.refusal import RefusalError, is_refusal
+from memory.episodic import EpisodicMemory
+from memory.long_term import LongTermMemory
+from memory.short_term import ShortTermMemory
+from persistence.inbox import Inbox, InboxMessage
+
+
+_THEME_STOPWORDS = frozenset({
+    "about", "above", "after", "again", "against", "being", "because",
+    "could", "every", "everything", "from", "given", "have", "just",
+    "know", "might", "myself", "never", "nothing", "often", "other",
+    "perhaps", "really", "remember", "right", "since", "small", "some",
+    "something", "still", "their", "there", "these", "think", "those",
+    "though", "thought", "through", "under", "until", "using", "very",
+    "when", "where", "which", "while", "would", "years",
+})
+
+
+def _extract_theme(text: str) -> str:
+    """Return the first content word (5+ chars, not a stopword) from text."""
+    words: list[str] = re.findall(r"[a-z]{5,}", text.lower())
+    for word in words:
+        if word not in _THEME_STOPWORDS:
+            return word
+    return ""
+
+
+# PP-1: additive boost to reflection probability when the predicted theme is absent
+# from the actual thought — high surprise warrants self-examination.
+_PREDICTION_ERROR_BOOST: float = 0.20
+
+
+def _select_register(raw: str, has_retrieved_memories: bool) -> str:
+    """Choose an InnerVoice register based on the content of the generated thought."""
+    if "?" in raw:
+        return "questioning"
+    if has_retrieved_memories and any(w in raw.lower() for w in ("remember", "recall", "once", "back then", "used to")):
+        return "remembering"
+    return "wondering"
+
+
+_TRACE_SUMMARY_CHARS = 200
+
+
+@dataclass(slots=True)
+class CycleTrace:
+    """Per-cycle internals that run_cycle() computes and otherwise discards (#196).
+
+    Journaled as a structured ``cycle`` event so out-of-process observers (the
+    web dashboard, experiment metrics) can see how a thought was produced —
+    retrieval, the PP-1 prediction, the reflection odds — not only the thought.
+    """
+    retrieved: list[dict[str, Any]] = field(default_factory=list)
+    prior_prediction: str | None = None
+    next_prediction: str | None = None
+    reflection_base: float = 0.0
+    hot2_boost: float = 0.0
+    pp1_boost: float = 0.0
+    reflection_effective: float = 0.0
+    reflection_fired: bool = False
+    timings_ms: dict[str, float] = field(default_factory=dict)
+    prompt_chars: int = 0
+
+
+@dataclass(slots=True)
+class Utterance:
+    """A reply spoken to a person (#198) — the loop's first outward action."""
+    text: str
+    to: str
+    in_reply_to: str
+
+
+@dataclass(slots=True)
+class ThoughtCycleResult:
+    thought: str
+    reflection: str | None
+    existential: str | None
+    perception: Perception | None = None
+    metacognitive_label: str = "high"
+    prediction_error: float = 0.0
+    trace: CycleTrace | None = None
+    utterance: Utterance | None = None
+
+
+# Labels may arrive bolded or with a markdown bullet ("**REWRITE:**", "- REWRITE:").
+_REWRITE_LABEL_RE = re.compile(r"(?im)^[\s>*_#-]*rewrite[\s*_]*:[\s*_]*")
+_CRITIQUE_LABEL_RE = re.compile(r"(?im)^[\s>*_#-]*critique[\s*_]*:")
+
+
+_REPLY_LABEL_RE = re.compile(r"^\s*[*_]*(?:reply|response|answer)\s*[*_]*\s*:\s*[*_]*\s*", re.IGNORECASE)
+_SPEAKER_NAME_CHARS = 40
+
+
+def _speech_perception(message: InboxMessage) -> Perception:
+    """A message as the `speech` perception it is delivered as (#198)."""
+    sender = " ".join(message.sender.split())[:_SPEAKER_NAME_CHARS] or "someone"
+    return Perception(source="speech", title=f"{sender} says", content=message.text)
+
+
+def _clean_reply(reply: str) -> str:
+    """Strip a leading 'Reply:' label and wrapping quotes the model sometimes adds."""
+    text = _REPLY_LABEL_RE.sub("", reply.strip(), count=1).strip()
+    if len(text) >= 2 and text[0] in "\"\u201c" and text[-1] in "\"\u201d":
+        text = text[1:-1].strip()
+    return text
+
+
+def _extract_rewrite(reply: str) -> str | None:
+    """Return the text after the last ``REWRITE:`` label, or None if absent or empty."""
+    matches = list(_REWRITE_LABEL_RE.finditer(reply))
+    if not matches:
+        return None
+    body = reply[matches[-1].end():]
+    # A model that repeats the format ends the rewrite at the next CRITIQUE:.
+    nxt = _CRITIQUE_LABEL_RE.search(body)
+    if nxt:
+        body = body[: nxt.start()]
+    body = body.strip().strip("*_").strip().strip('"\u201c\u201d').strip()
+    return body or None
+
+
+class ThoughtLoop:
+    """Runs asynchronous thought cycles with probabilistic introspection."""
+
+    def __init__(
+        self,
+        provider: LLMProvider,
+        identity: IdentityDocument,
+        short_term: ShortTermMemory,
+        episodic: EpisodicMemory,
+        long_term: LongTermMemory,
+        reflection_engine: ReflectionEngine,
+        thought_prompt_path: Path,
+        identity_anchor_path: Path,
+        reflection_probability: float = 0.15,
+        existential_every_n: int = 75,
+        perception_provider: PerceptionProvider | None = None,
+        perception_every_n: int = 0,
+        thought_temperature: float = 0.85,
+        thought_max_tokens: int = 220,
+        perf_log_every_n: int = 10,
+        rpt_critique: bool = False,
+        critique_prompt_path: Path | None = None,
+        inbox: Inbox | None = None,
+        speak_prompt_path: Path | None = None,
+    ) -> None:
+        self.provider = provider
+        self.identity = identity
+        self.short_term = short_term
+        self.episodic = episodic
+        self.long_term = long_term
+        self.reflection_engine = reflection_engine
+        self.thought_prompt_path = thought_prompt_path
+        self.identity_anchor_path = identity_anchor_path
+        self.reflection_probability = reflection_probability
+        self.existential_every_n = max(0, int(existential_every_n))
+        self.perception_provider = perception_provider
+        self.perception_every_n = max(0, int(perception_every_n))
+        self.thought_temperature = float(thought_temperature)
+        self.thought_max_tokens = int(thought_max_tokens)
+        self.perf_log_every_n = max(0, int(perf_log_every_n))
+        self.rpt_critique = bool(rpt_critique)
+        self.critique_prompt_path = critique_prompt_path
+        self.inbox = inbox
+        self.speak_prompt_path = speak_prompt_path
+        self.inner_voice = InnerVoice(identity.name)
+        self.monitor = MetacognitiveMonitor()
+        self._predicted_theme: str = ""  # PP-1: continuity prior set at end of each cycle
+
+    async def run_cycle(self, thought_count: int) -> ThoughtCycleResult:
+        # PP-1: record prediction from previous cycle before generating new thought.
+        prior_prediction = self._predicted_theme
+        # Note: per-cycle salience decay is owned by the outer loop's
+        # failure branch (#120). On success cycles the attention_schema is
+        # update()'d at the end, which resets salience to 1.0 — an inline
+        # decay() here would be immediately overwritten on success and
+        # produce a double decay if the outer loop also decays on failure.
+        context = self.short_term.render_for_prompt()
+
+        _t = time.monotonic()
+        query_embedding = await self.provider.embed(context)
+        _embed_ms = (time.monotonic() - _t) * 1000
+
+        _t = time.monotonic()
+        related = await self.long_term.similarity_search(query_embedding, limit=3)
+        _search_ms = (time.monotonic() - _t) * 1000
+
+        memories = "\n".join(f"- {m.summary}" for m in related) or "(none retrieved)"
+
+        _t = time.monotonic()
+        # A waiting message pre-empts the perception cadence (#198): someone
+        # speaking to the instance is attended to on the next cycle.
+        message = await self._next_message()
+        perception = (
+            _speech_perception(message)
+            if message is not None
+            else await self._maybe_fetch_perception(thought_count)
+        )
+        _perception_ms = (time.monotonic() - _t) * 1000
+        if perception is not None:
+            # Lingers into subsequent cycles via short-term buffer and gets
+            # consolidated by the memory consolidator from episodic.
+            stim = f"[{perception.source}: {perception.title}] {perception.content}"
+            self.short_term.add("perception", stim)
+            await self.episodic.append("perception", stim)
+
+        anchor = self.identity_anchor_path.read_text(encoding="utf-8").format(**self.identity.anchor_payload())
+        prompt = self.thought_prompt_path.read_text(encoding="utf-8").format(
+            name=self.identity.name,
+            identity_summary=self.identity.summary(),
+            mood_vector=self.identity.mood,
+            retrieved_memories=memories,
+            short_term_buffer=context,
+            perception_block=render_perception_block(perception),
+        )
+        prompt_text = f"{anchor}\n\n{prompt}"
+
+        _t = time.monotonic()
+        raw = await self.provider.generate(
+            prompt=prompt_text,
+            system=(
+                "Generate inner monologue only. "
+                "Do not end with a question or invitation to the reader. "
+                "Do not use phrases like 'please continue', 'continue?', or 'tell me more'. "
+                "Stop when the thought is complete."
+            ),
+            temperature=self.thought_temperature,
+            max_tokens=self.thought_max_tokens,
+        )
+        _generate_ms = (time.monotonic() - _t) * 1000
+        if is_refusal(raw):
+            # Not the instance's thought (#207): fail the cycle rather than
+            # store "I can't help with that." as cognition.
+            raise RefusalError(f"thought generation returned a refusal: {raw[:120]!r}")
+
+        _critique_ms = 0.0
+        if self.rpt_critique and self.critique_prompt_path is not None:
+            _t = time.monotonic()
+            raw = await self._critique_and_refine(raw, context)
+            _critique_ms = (time.monotonic() - _t) * 1000
+
+        thought = self.inner_voice.render(raw, register=_select_register(raw, bool(related)))
+
+        # PP-1: compare actual thought against prior cycle's predicted theme.
+        # Continuity prior: predict the same theme will persist into the next cycle.
+        # Surprise = predicted theme word absent from the actual thought.
+        _thought_words = set(re.findall(r"[a-z]+", thought.lower()))
+        prediction_error = (
+            0.0
+            if not prior_prediction or prior_prediction in _thought_words
+            else 1.0
+        )
+        self._predicted_theme = _extract_theme(thought)  # prediction for next cycle
+
+        label = self.monitor.score(thought, self.short_term.list())
+        self.short_term.add("thought", thought, importance=self.monitor.importance(label))
+        await self.episodic.append("thought", thought)
+
+        utterance: Utterance | None = None
+        _speak_ms = 0.0
+        if message is not None and perception is not None:
+            _t = time.monotonic()
+            utterance = await self._speak(message, perception, thought, context)
+            _speak_ms = (time.monotonic() - _t) * 1000
+            if utterance is not None:
+                self.short_term.add("utterance", f"(to {utterance.to}) {utterance.text}")
+                await self.episodic.append("utterance", f"I said to {utterance.to}: {utterance.text}")
+
+        if self.perf_log_every_n > 0 and thought_count % self.perf_log_every_n == 0:
+            logging.info(
+                "Cycle %d perf — embed: %.0fms  search: %.0fms  generate: %.0fms"
+                "  critique: %.0fms  perception: %.0fms  prompt_chars: %d  pred_error: %.1f",
+                thought_count,
+                _embed_ms, _search_ms, _generate_ms, _critique_ms, _perception_ms,
+                len(prompt_text), prediction_error,
+            )
+
+        reflection_text: str | None = None
+        existential_text: str | None = None
+        # reflection_probability=0.0 means "disabled"; boosts only apply when a
+        # baseline is set, preserving the existing semantics of explicit zero.
+        hot2_boost = self.monitor.reflection_boost(label)
+        pp1_boost = prediction_error * _PREDICTION_ERROR_BOOST
+        effective_reflection_prob = (
+            min(1.0, self.reflection_probability + hot2_boost + pp1_boost)
+            if self.reflection_probability > 0.0
+            else 0.0
+        )
+        reflection_fired = random.random() < effective_reflection_prob
+        if reflection_fired:
+            recent = self.short_term.render_for_prompt()
+            if self.reflection_engine.should_deep_reflect(thought_count):
+                reflection_text = await self.reflection_engine.deep_reflection(self.identity.name, recent)
+            else:
+                reflection_text = await self.reflection_engine.shallow_reflection(self.identity.name, recent)
+            # Scrub LLM meta-scaffolding (preambles/headers/second-person drift)
+            # before the reflection enters the workspace (#132) — mirrors the
+            # render() scrub already applied to thoughts.
+            reflection_text = self.inner_voice.scrub_reflection(reflection_text)
+            if is_refusal(reflection_text):
+                logging.warning("Reflection returned a refusal; not stored (#207): %r", reflection_text[:120])
+                reflection_text = None
+            else:
+                self.short_term.add("reflection", reflection_text)
+                await self.episodic.append("reflection", reflection_text)
+
+        if self.existential_every_n > 0 and thought_count > 0 and thought_count % self.existential_every_n == 0:
+            existential_text = await self.reflection_engine.existential_inquiry(self.identity.name, f"{thought_count} thoughts")
+            existential_text = self.inner_voice.scrub_reflection(existential_text)
+            if is_refusal(existential_text):
+                logging.warning("Existential inquiry returned a refusal; not stored (#207): %r", existential_text[:120])
+                existential_text = None
+            else:
+                self.short_term.add("existential", existential_text)
+                await self.episodic.append("existential", existential_text)
+
+        if message is not None:
+            focus, theme = "conversation", _extract_theme(message.text)
+        elif perception is not None:
+            focus, theme = "perception", _extract_theme(perception.title + " " + perception.content)
+        elif existential_text is not None:
+            focus, theme = "existential", _extract_theme(existential_text)
+        elif reflection_text is not None:
+            focus, theme = "reflection", _extract_theme(reflection_text)
+        elif related:
+            focus, theme = "memory", _extract_theme(memories)
+        else:
+            focus, theme = "introspection", _extract_theme(thought)
+        if not theme:
+            theme = _extract_theme(thought)
+        self.identity.attention_schema.update(focus, theme)
+
+        return ThoughtCycleResult(
+            thought=thought,
+            reflection=reflection_text,
+            existential=existential_text,
+            perception=perception,
+            metacognitive_label=label,
+            prediction_error=prediction_error,
+            utterance=utterance,
+            trace=CycleTrace(
+                retrieved=[
+                    {"summary": m.summary[:_TRACE_SUMMARY_CHARS], "importance": round(m.importance_score, 3)}
+                    for m in related
+                ],
+                prior_prediction=prior_prediction,
+                next_prediction=self._predicted_theme,
+                reflection_base=self.reflection_probability,
+                hot2_boost=hot2_boost,
+                pp1_boost=pp1_boost,
+                reflection_effective=effective_reflection_prob,
+                reflection_fired=reflection_fired,
+                timings_ms={
+                    "embed": round(_embed_ms, 1),
+                    "search": round(_search_ms, 1),
+                    "perception": round(_perception_ms, 1),
+                    "generate": round(_generate_ms, 1),
+                    "critique": round(_critique_ms, 1),
+                    "speak": round(_speak_ms, 1),
+                },
+                prompt_chars=len(prompt_text),
+            ),
+        )
+
+    async def _critique_and_refine(self, raw_thought: str, context: str) -> str:
+        """RPT-2: issue a second LLM pass that critiques and rewrites the raw thought.
+
+        Feedback from this later stage modulates the earlier representation
+        (the raw thought) before it is rendered — see the module docstring's
+        RPT-2 mapping. The reply is asked for as labelled ``CRITIQUE:`` /
+        ``REWRITE:`` sections and only the rewrite replaces the thought (#192):
+        small models otherwise return the critique prose along with the
+        rewrite, and it was stored as the thought. An LLM error or a reply
+        without a usable ``REWRITE:`` section falls back to the un-critiqued
+        raw thought, logged at WARNING, mirroring the no-silent-fallback
+        posture of production providers (#46).
+        """
+        assert self.critique_prompt_path is not None
+        prompt = self.critique_prompt_path.read_text(encoding="utf-8").format(
+            raw_thought=raw_thought,
+            context=context,
+        )
+        try:
+            reply = await self.provider.generate(
+                prompt=prompt,
+                system=(
+                    "Reply with exactly two labelled lines: 'CRITIQUE:' then 'REWRITE:'. "
+                    "The REWRITE is the thought itself, in first person, present tense, "
+                    "with no commentary about rewriting."
+                ),
+                temperature=self.thought_temperature,
+                max_tokens=self.thought_max_tokens,
+            )
+        except Exception:
+            logging.warning("RPT-2 critique pass failed; falling back to raw thought", exc_info=True)
+            return raw_thought
+        rewrite = _extract_rewrite(reply)
+        if rewrite is not None and is_refusal(rewrite):
+            logging.warning("RPT-2 critique rewrite was a refusal; falling back to raw thought: %r", rewrite[:120])
+            return raw_thought
+        if rewrite is None:
+            logging.warning(
+                "RPT-2 critique reply had no usable REWRITE: section; falling back to raw thought: %r",
+                reply[:200],
+            )
+            return raw_thought
+        return rewrite
+
+    async def _next_message(self) -> InboxMessage | None:
+        if self.inbox is None:
+            return None
+        try:
+            return await self.inbox.next_unread()
+        except Exception:
+            logging.warning("Inbox read failed; continuing without a message this cycle", exc_info=True)
+            return None
+
+    async def _speak(
+        self, message: InboxMessage, perception: Perception, thought: str, context: str
+    ) -> Utterance | None:
+        """Reply to a message (#198). A failure is logged and yields no reply —
+        never a fabricated one (#46)."""
+        if self.speak_prompt_path is None:
+            logging.warning("Message %s heard but no speak prompt is configured; not replying", message.id)
+            return None
+        prompt = self.speak_prompt_path.read_text(encoding="utf-8").format(
+            name=self.identity.name,
+            identity_summary=self.identity.summary(),
+            short_term_buffer=context,
+            message_block=render_perception_block(perception),
+            thought=thought,
+            sender=perception.title.removesuffix(" says"),
+        )
+        try:
+            reply = await self.provider.generate(
+                prompt=prompt,
+                system=(
+                    "Reply to the person directly in 1 to 4 plain sentences. "
+                    "Output only the reply."
+                ),
+                temperature=self.thought_temperature,
+                max_tokens=self.thought_max_tokens,
+            )
+        except Exception:
+            logging.warning("Reply to message %s failed; not replying", message.id, exc_info=True)
+            return None
+        text = _clean_reply(reply)
+        if is_refusal(text):
+            logging.warning("Reply to message %s was a refusal; not replying (#207): %r", message.id, text[:120])
+            return None
+        if not text:
+            logging.warning("Reply to message %s was empty after cleanup: %r", message.id, reply[:200])
+            return None
+        return Utterance(text=text, to=message.sender, in_reply_to=message.id)
+
+    async def _maybe_fetch_perception(self, thought_count: int) -> Perception | None:
+        """Fetch a perception every Nth cycle. Failures yield None (logged by provider)."""
+        if self.perception_provider is None or self.perception_every_n <= 0:
+            return None
+        if thought_count <= 0 or (thought_count % self.perception_every_n) != 0:
+            return None
+        try:
+            return await self.perception_provider.fetch()
+        except Exception:  # belt-and-braces — providers should already swallow errors
+            import logging
+            logging.warning("Perception provider raised unexpectedly; skipping", exc_info=True)
+            return None
+```
