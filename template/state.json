@@ -1,0 +1,15 @@
+{
+  "needs": {
+    "competence": {"value": 0.40, "baseline": 0.30, "decay_per_hour": 0.010, "label": "胜任/把事情做成"},
+    "connection": {"value": 0.35, "baseline": 0.25, "decay_per_hour": 0.008, "label": "联结/与主人同步"},
+    "curiosity": {"value": 0.45, "baseline": 0.35, "decay_per_hour": 0.012, "label": "好奇/探索未知"},
+    "rest": {"value": 0.20, "baseline": 0.15, "decay_per_hour": 0.020, "label": "休息/降低活动"}
+  },
+  "emotion": {
+    "valence": {"value": 0.10, "baseline": 0.00, "decay_per_hour": 0.050, "label": "愉悦度 -1..1"},
+    "arousal": {"value": 0.30, "baseline": 0.30, "decay_per_hour": 0.050, "label": "唤醒度 0..1"}
+  },
+  "urgent_threshold": 0.75,
+  "last_tick": null,
+  "last_consolidation": null
+}

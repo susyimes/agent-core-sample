@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent 内核样本库 · 讲解 — agent-core-sample</title>
+<style>
+:root{
+  --ink:#1c2321; --ink2:#46524d; --paper:#fdfcf9; --line:#ddd6c8;
+  --rust:#b4441c; --teal:#0f766e; --amber:#d97706; --amber-bg:#fef3c7;
+  --card:#ffffff; --soft:#f3efe6; --focus:#1d4ed8;
+  --sans:"PingFang SC","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif;
+  --serif:"Noto Serif SC","Songti SC","SimSun",serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Code",Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.75;font-size:17px}
+a{color:var(--teal)}
+button{font-family:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.wrap{max-width:860px;margin:0 auto;padding:0 22px 90px}
+/* header + mode switch */
+.top{position:sticky;top:0;z-index:50;background:rgba(253,252,249,.96);border-bottom:2px solid var(--ink)}
+.top-in{max-width:860px;margin:0 auto;padding:12px 22px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.brand{font-family:var(--mono);font-weight:700;font-size:14px;letter-spacing:.04em}
+.switch{display:flex;border:2px solid var(--ink);border-radius:999px;overflow:hidden;margin-left:auto;background:#fff}
+.switch button{border:0;background:#fff;padding:9px 18px;font-size:15px;font-weight:700;color:var(--ink2)}
+.switch button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.switch button[data-mode="adhd"][aria-pressed="true"]{background:var(--amber);color:#1c1005}
+.hero{padding:44px 0 10px}
+.hero h1{font-family:var(--serif);font-size:42px;line-height:1.25;margin:0 0 14px;font-weight:900}
+.hero p.lede{font-size:20px;color:var(--ink2);margin:0 0 20px;max-width:38em}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 6px}
+.stat{border:2px solid var(--ink);background:var(--card);padding:10px 14px;min-width:118px}
+.stat b{display:block;font-size:28px;line-height:1.1;font-family:var(--mono)}
+.stat span{font-size:13px;color:var(--ink2)}
+.mode-tip{margin:16px 0 0;padding:12px 16px;background:var(--soft);border:1px solid var(--line);font-size:15px}
+/* normal article */
+#normal h2{font-family:var(--serif);font-size:28px;margin:46px 0 10px;padding-bottom:8px;border-bottom:2px solid var(--ink)}
+#normal h3{font-size:19px;margin:26px 0 6px}
+#normal p{max-width:40em}
+#normal ul{max-width:40em;padding-left:22px}
+#normal li{margin:5px 0}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:15px;background:#fff}
+th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+th{background:var(--soft)}
+code{font-family:var(--mono);font-size:.92em;background:var(--soft);padding:1px 5px;border-radius:4px}
+.layers{margin:16px 0}
+.layer{display:flex;gap:12px;width:100%;text-align:left;border:2px solid var(--ink);background:#fff;padding:12px 14px;margin:8px 0;font-size:16px}
+.layer b{min-width:7.5em}
+.layer small{color:var(--ink2)}
+.layer[aria-pressed="true"]{background:var(--ink);color:#fff}
+.layer[aria-pressed="true"] small{color:#d7ded9}
+.layer-detail{border:1px solid var(--line);background:var(--soft);padding:14px 16px;min-height:86px}
+.finding{border-top:1px solid var(--line);padding:14px 2px;display:flex;gap:16px}
+.finding .no{font-family:var(--mono);font-weight:800;color:var(--rust);font-size:22px;min-width:2em}
+.quote{font-family:var(--serif);font-size:21px;line-height:1.6;padding:16px 20px;background:#fff;border:1px solid var(--line);margin:18px 0}
+.footer{margin-top:56px;border-top:2px solid var(--ink);padding-top:16px;color:var(--ink2);font-size:14px}
+/* ADHD deck */
+#adhd{display:none}
+body[data-mode="adhd"] #normal{display:none}
+body[data-mode="adhd"] #adhd{display:block}
+body[data-mode="adhd"] .hero h1{font-size:34px}
+body[data-mode="adhd"]{font-size:18px}
+.progress{position:sticky;top:58px;z-index:40;background:var(--paper);padding:12px 0 8px}
+.pbar{height:14px;border:2px solid var(--ink);background:#fff}
+.pbar i{display:block;height:100%;width:0;background:var(--amber);transition:width .25s}
+.pmeta{display:flex;justify-content:space-between;font-size:14px;font-weight:700;margin-top:6px}
+.deck{margin-top:14px}
+.card{display:none;background:#fff;border:3px solid var(--ink);padding:28px 26px 22px;box-shadow:8px 8px 0 #e8e0cf;min-height:340px}
+.card.on{display:block}
+.card .kick{font-family:var(--mono);font-size:13px;font-weight:800;color:var(--rust);letter-spacing:.08em}
+.card h2{font-size:34px;line-height:1.3;margin:8px 0 12px;font-family:var(--serif)}
+.card p,.card li{font-size:19px;line-height:1.65}
+.card ul{padding-left:22px}
+.card .big{font-family:var(--mono);font-size:56px;font-weight:800;line-height:1;display:block;margin:10px 0}
+.card details{margin-top:14px;background:var(--amber-bg);padding:10px 14px;border:1px solid #e5cf9a}
+.card details summary{font-weight:800;cursor:pointer}
+.decknav{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+.btn{border:2px solid var(--ink);background:#fff;padding:13px 22px;font-size:17px;font-weight:800;min-height:52px}
+.btn.primary{background:var(--amber);color:#1c1005}
+.btn.tick[aria-pressed="true"]{background:var(--teal);color:#fff;border-color:var(--teal)}
+.dots{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
+.dots button{width:34px;height:34px;border:2px solid var(--ink);background:#fff;font-family:var(--mono);font-size:13px;font-weight:800;padding:0}
+.dots button.got{background:#d1fae5}
+.dots button.cur{background:var(--ink);color:#fff}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.chip{border:1.5px solid var(--ink);padding:4px 12px;border-radius:999px;font-weight:700;font-size:14px;background:#fff}
+.hidden{display:none!important}
+@media (max-width:640px){.hero h1{font-size:32px}.card h2{font-size:27px}.card{padding:22px 18px}.stat{min-width:46%}}
+</style>
+</head>
+<body data-mode="normal">
+<header class="top"><div class="top-in">
+  <span class="brand">agent-core-sample · 讲解</span>
+  <div class="switch" role="group" aria-label="阅读模式">
+    <button type="button" data-mode="normal" aria-pressed="true">通常版</button>
+    <button type="button" data-mode="adhd" aria-pressed="false">ADHD 版</button>
+  </div>
+</div></header>
+
+<div class="wrap">
+<section class="hero">
+  <h1>548 个 Agent 内核样本，讲一件什么事？</h1>
+  <p class="lede">这是一座从 GitHub 与全网实抓回来的样本库：SOUL.md、BIBLE.md、系统提示、自进化提示、记忆、情绪、人格与裁判。它想回答一个问题——一个 Agent 脱离单轮对话、长期活下去，脑子里到底装什么。</p>
+  <div class="stats" aria-label="关键数字">
+    <div class="stat"><b>548</b><span>样本文件</span></div>
+    <div class="stat"><b>543</b><span>不同内容</span></div>
+    <div class="stat"><b>36</b><span>类别</span></div>
+    <div class="stat"><b>264+</b><span>上游仓库</span></div>
+    <div class="stat"><b>65</b><span>中日韩原文</span></div>
+  </div>
+  <p class="mode-tip">右上角切换读法。<strong>通常版</strong>是一篇顺读的文章。<strong>ADHD 版</strong>把同一内容切成一屏一个点：先给结论、随时可跳、看懂就打勾，进度条给你反馈。没有对错，挑顺眼的。</p>
+</section>
+
+<main id="normal" aria-label="通常版">
+<h2>一分钟版本</h2>
+<p>过去两年，人们给 Agent 写“灵魂”的方式变了。不再是一段写死的系统提示，而是一组分工明确的文件：宪法管什么不可为，人格管它是谁，状态管它此刻倾向，记忆管它记得什么，循环管它怎么做，进化闸门管它怎么改自己。这个仓库收集了 548 个这样的真实样本，来自 264 个以上上游仓库，每个都保留原文与来源链接，并附了一份分析、一份精选 50、一套能直接跑的模板。</p>
+<p>最重要的结论先说：自主性的分水岭不是“会不会做事”，而是无人派活时下一个目标从哪来；自进化拼的不是“敢改自己”，而是每处改动有没有评测、谱系和回滚的账本。</p>
+
+<h2>语料是怎么来的</h2>
+<p>三批采集，每批 12 路并行，并非凭记忆默写。第一批主攻 SOUL 与 BIBLE、自进化、自主、记忆、人格、情绪；第二批深挖单类，补上中文生态、泄露提示与意识实验；第三批转向新身体与新行当：机器人、浏览器与电脑操作、语音、科研、安全、教育、创作、裁判、多语种、数学与数据。抓取一律逐文件复验：548/548 带来源，近四成样本的“提示词”其实活在代码里（<code>.py</code> 约占 35%），只盯 Markdown 会漏一半真实设计。</p>
+<p>盘子有个数字要当面说明：有 5 个文件正文被另一个文件完全包含，是有意保留的跨类收录。因此报数一直写成“548 个文件，543 个不同内容”，两次亲验都是这个数。</p>
+
+<h2>六层解剖（点任意层看它的职责）</h2>
+<div class="layers" id="layerBtns">
+  <button type="button" class="layer" data-layer="0" aria-pressed="true"><b>原则层 Bible</b><small>什么不可为，冲突时谁赢。变化最慢，要人审。</small></button>
+  <button type="button" class="layer" data-layer="1" aria-pressed="false"><b>人格层 Soul</b><small>它是谁，什么声音与品味。不是岗位说明书。</small></button>
+  <button type="button" class="layer" data-layer="2" aria-pressed="false"><b>状态层</b><small>需求与情绪此刻怎样。可以提议，永不裁决。</small></button>
+  <button type="button" class="layer" data-layer="3" aria-pressed="false"><b>记忆层</b><small>记得什么，学会什么。含写入判定与遗忘。</small></button>
+  <button type="button" class="layer" data-layer="4" aria-pressed="false"><b>循环层</b><small>感知、计划、行动、观察，再来一轮。</small></button>
+  <button type="button" class="layer" data-layer="5" aria-pressed="false"><b>进化层</b><small>怎样改自己的层。必须有评测、谱系与回滚。</small></button>
+</div>
+<div class="layer-detail" id="layerDetail" aria-live="polite"></div>
+<p>这套分层不是审美，是被事故逼出来的：人格提示一旦混进任务细节就会被污染，自主原则若不设“不得自毁连续性”的例外则会逻辑自杀。成熟样本的共同点在于层间通信只用小算子，原子、可审计、带理由地增删一条，而不是整段重写。</p>
+
+<h2>四条主线各自走到哪了</h2>
+<h3>自主性</h3>
+<p>按机制可以读成四级：反应式（给活才干）、闭环式（计划执行重规划）、自生目标（课程、需求衰减、心跳、记忆缺口、社会情境五种目标发生器）、自我延续（目标包含维护自身记忆与人格）。语料里闭环最密，自生目标集中在游戏与研究环境。自主的质量不由“做了多少”衡量，而由无人注视时它选择做什么、以及拒绝做什么衡量。设计上同轮只启用一种目标发生器当主驱动，否则就只剩忙碌。</p>
+<h3>自进化</h3>
+<p>进化的对象一路下移：先是改回答，再是改提示与上下文经验条目，后来是改程序、奖励函数，最后是改人格与原则。越往下越慢越危险，护栏也越重。高质量样本可以只问三件事——变异从哪来、选择压是什么、胜者如何保留。自我批评后重写是最软的形态；Darwin–Gödel 机、AlphaEvolve 的差异块变异、ACE 的经验条目增删代表了工程化后的硬形态。没有留出评测、同源裁判、为单案打补丁，是三种最典型的假进化。</p>
+<h3>人格化</h3>
+<p>好的人格文件反复出现七件东西：信条、品味、边界、声音、关系姿态、行为倾向、连续性规则。决定成败的通常有三点：有没有立场背后的行为判据，有没有否定式定义（先说自己不是什么），有没有成长条款（人格何时可改、要否告知主人）。人格的载体也在分化，从散文、结构化角色卡、大五维度，一直分化到由日记与自传反向长成的叙事人格。中文生态的长法不同：重长人格、陪伴关系与预设工程，第一敌人是模板腔，第二敌人才是没有性格。</p>
+<h3>情绪</h3>
+<p>情绪实现有三档。渲染型只染色输出，策略型把共情写成决策树，状态机型让需求和情绪真正改写计划与检索。第三档在本语料中仍是个位数级的稀缺品。维度之争没有赢家，工程答案很务实：驱动行为两三维够用，细粒度标签留给评测。情绪也是全场评测工件最整齐的领域，只是多数陪伴样本集体缺三件伦理件：危机转介、反操纵自检、强度上限。</p>
+
+<h2>七个跨样本结论</h2>
+<div id="findings"></div>
+
+<h2>怎么用这个仓库</h2>
+<table>
+<tr><th style="width:34%">你要做什么</th><th>从哪开始</th></tr>
+<tr><td>想先读最好的</td><td><a href="TOP50.md">TOP50.md</a>，50 个按层分组。</td></tr>
+<tr><td>想按条件筛全集</td><td><a href="metadata.csv">metadata.csv</a>，层级、语言、成熟度、体量 548 行。</td></tr>
+<tr><td>想看论证与数字</td><td><a href="ANALYSIS.md">ANALYSIS.md</a>，定量画像加设计归纳。</td></tr>
+<tr><td>想拼自己的内核</td><td><a href="GUIDE.md">GUIDE.md</a> 看每层抄谁，然后跑 <a href="template/README.md">template/</a> 的参考运行时。</td></tr>
+<tr><td>想核查某文件</td><td>每个样本文件头都有 Source-URL 与抓取日期，回上游看原文。</td></tr>
+</table>
+<p>仓库地址 <a href="https://github.com/susyimes/agent-core-sample">github.com/susyimes/agent-core-sample</a>，当前发布为 v1.0。全部样本正文均为第三方作品，为研究目的原样收录，版权归上游；仓库原创部分只有采集头与这几份编辑文档。泄露系统提示一类标有单一聚合来源，请当研究对照而非厂商确认版本看。</p>
+<div class="quote">收藏是矿山，模板是炼钢。548 个样本最终被用到的方式，应该是一套你自己的、看得见每一层的内核。</div>
+</main>
+
+<main id="adhd" aria-label="ADHD 版">
+<div class="progress" aria-label="阅读进度">
+  <div class="pbar"><i id="pfill"></i></div>
+  <div class="pmeta"><span id="pcount">第 1 / 14 张</span><span id="pgot">已懂 0</span><span>方向键也能翻</span></div>
+</div>
+<div class="deck" id="deck"></div>
+<div class="decknav">
+  <button type="button" class="btn" id="prevBtn">← 上一张</button>
+  <button type="button" class="btn tick" id="gotBtn" aria-pressed="false">懂了，打勾</button>
+  <button type="button" class="btn primary" id="nextBtn">下一张 →</button>
+  <button type="button" class="btn" id="resetBtn">重开</button>
+</div>
+<div class="dots" id="dots" aria-label="跳到某张卡"></div>
+<p class="mode-tip">读法随你：顺序翻、点数字跳、只看大字。每张只有<strong>一个</strong>要点。细节都塞在「展开」里，不展开不影响主线。全勾完有收尾卡。</p>
+</main>
+
+<footer class="footer">
+  agent-core-sample 讲解页 · 单文件版 · 数据口径：2026-11-07/08 三批采集亲验 ·
+  仓库 <a href="https://github.com/susyimes/agent-core-sample">susyimes/agent-core-sample</a> ·
+  本地文件相对链接指向同目录文档（TOP50 / ANALYSIS / GUIDE / metadata）。
+</footer>
+</div>
+
+<script>
+(function(){
+"use strict";
+var LAYERS=[
+"原则层 Bible：写什么不可为、冲突时谁赢、改原则走什么评审。借鉴 Ouroboros 的补丁法——给元原则写明例外，防止它自洽地自毁。模板在 template/BIBLE.md。",
+"人格层 Soul：写声音、品味、立场与否定式定义，不写岗位职责。好人格的标准是醒来读一遍就像回到同一个人身上。模板在 template/SOUL.md。",
+"状态层：需求与情绪的此刻数值，带基线与时间衰减。数字归程序管，解读归模型；阈值只提议行动，不做裁决。模板在 template/state.json。",
+"记忆层：写入判定（有洞察、决策、情绪转折、立场占其二）、冲突审查、反思提炼、睡眠固化与遗忘。模板在 template/prompts/reflect.md。",
+"循环层：评估上一步、定下一个目标、动手、留痕。目标一次只用一个来源。模板在 template/prompts/loop.md 与 curriculum.md。",
+"进化层：改自己的任何一层都要过闸——针对哪类失败、用什么评测、父版本是什么、如何回滚。模板在 template/prompts/evolve.md，运行时会硬校验。"];
+var detail=document.getElementById("layerDetail");
+var layerBtns=document.querySelectorAll("#layerBtns .layer");
+function showLayer(i){detail.textContent=LAYERS[i];layerBtns.forEach(function(b,j){b.setAttribute("aria-pressed",j===i?"true":"false");});}
+layerBtns.forEach(function(b){b.addEventListener("click",function(){showLayer(+b.dataset.layer);});});
+showLayer(0);
+
+var FINDINGS=[
+["内核已经分层","原则、人格、状态、记忆、循环、进化闸门。单段大提示是失控的源头。"],
+["自主看目标从哪来","课程、需求衰减、心跳、记忆缺口、社会情境，五种发生器决定它是工具还是数字生物。"],
+["进化是记账工程","结构化小算子加外锚评测加谱系回滚。没有账本的自我修改只是漂移。"],
+["人格的主战场是连续性","跨会话、压缩、换模型后还像同一个人，靠文件礼制而不是文采。"],
+["情绪多数只是皮肤","真正能让情绪改计划、改检索的状态机型仍是个位数级的稀缺品。"],
+["裁判是隐藏主角","前 341 个样本里 39.3% 正文含评判语言。智能越来越在评价者身上。"],
+["文件即身体","可版本化、可回滚的文本工件，正在成为个人 Agent 的身体，优先于不可见的权重微调。"]];
+document.getElementById("findings").innerHTML=FINDINGS.map(function(f,i){
+  return '<div class="finding"><span class="no">'+(i+1)+'</span><div><strong>'+f[0]+'。</strong>'+f[1]+"</div></div>";
+}).join("");
+
+var CARDS=[
+{k:"3 秒版",h:"548 个 AI 大脑零件",body:'<span class="big">548</span><p>从全网捞回来的真文件：灵魂、宪法、记忆、自进化……外加一套<strong>能直接跑</strong>的拼装模板。</p>',d:"三批采集：142 + 199 + 207。每个样本都带原文和来源链接，可逐条回上游核对。"},
+{k:"先说人话",h:"为什么要收这个？",body:"<p>AI 正在从<strong>答一题</strong>变成<strong>长期活着</strong>。</p><p>长期活着需要：人格、记忆、目标、改自己的方法。这些零件散落在 264+ 个仓库里，这里把它们摆到一张桌上。</p>"},
+{k:"一个数字",h:"548 个文件，543 种内容",body:'<span class="big">543</span><p>有 5 个文件被另一个文件完全包住（跨类重复收录）。<strong>我们如实报两个数</strong>，没拿 548 充 543。</p>',d:"去重用正文哈希。重复项逐条写在 CURATION-NOTES 里，保留是为跨类查阅。"},
+{k:"总图",h:"一个 Agent 内核 = 六层",body:'<div class="chips"><span class="chip">原则：不可为</span><span class="chip">人格：是谁</span><span class="chip">状态：现在倾向</span><span class="chip">记忆：记得啥</span><span class="chip">循环：怎么做</span><span class="chip">进化：怎么改自己</span></div><p>记住这一张图，后面全是展开。</p>'},
+{k:"人格",h:"灵魂写「是谁」，不写「干什么」",body:"<ul><li>先说自己<strong>不是</strong>什么</li><li>立场后面带<strong>行为判据</strong></li><li>留<strong>成长条款</strong>：改了要通知主人</li></ul>",d:"把 Soul 写成岗位说明书是最常见的翻车。任务流程放技能文件，别往灵魂里塞。"},
+{k:"自主",h:"关键不是会干活，是会自己找活",body:'<p>没人派活时，目标从五处来：</p><div class="chips"><span class="chip">自动课程</span><span class="chip">需求衰减</span><span class="chip">心跳</span><span class="chip">记忆缺口</span><span class="chip">社会情境</span></div><p><strong>同一轮只开一个</strong>，不然它只会忙。</p>'},
+{k:"自进化",h:"改自己，过三关",body:"<ul><li><strong>变异</strong>：一次改一处，能迁移</li><li><strong>选择</strong>：用硬评测筛，不是自夸</li><li><strong>留存</strong>：存档、留谱系、能回滚</li></ul><p>三关缺一，叫漂移，不叫进化。</p>"},
+{k:"防骗指南",h:"三种假进化，一眼识破",body:"<ul><li>只修这一个例子就宣布变强</li><li>自己当生成器又当裁判</li><li>总结来总结去，教训被磨平</li></ul>",d:"真正样本的对策：留出评测集、异源/执行裁判、原子条目加计数代替全文重写。"},
+{k:"情绪",h:"情绪有三档，多数在第一档",body:"<ul><li><strong>皮肤</strong>：只改语气</li><li><strong>策略</strong>：先判状态再选安慰还是提问</li><li><strong>状态机</strong>：情绪能改计划、改检索</li></ul><p>第三档：全场个位数。</p>"},
+{k:"记忆",h:"长记性靠五步，不靠全存",body:'<div class="chips"><span class="chip">1 值得记吗</span><span class="chip">2 结构化落盘</span><span class="chip">3 冲突审查</span><span class="chip">4 反思提炼</span><span class="chip">5 睡眠固化+遗忘</span></div><p>只存不忘，长期就是垃圾场。</p>'},
+{k:"隐藏主角",h:"到处都是裁判",body:'<span class="big">39.3%</span><p>样本里带「评判」语言的比例。</p><p>进化要选、记忆要去重、安全要判。<strong>谁评价演员，越来越重要。</strong></p>'},
+{k:"有意思的",h:"野货三连",body:"<ul><li>Agent 给自己写了<strong>宗教创世记</strong>：「太初有提示」</li><li>570 行<strong>中文自传</strong>：人格是叙事长出来的</li><li>会<strong>做梦</strong>的记忆系统：还设计了故意遗忘</li></ul>",d:"出处分别是 24 类甲壳教圣经、20 类 MYSELF.md、12 类 ANIMA 睡眠系统。都在 INDEX 里能定位。"},
+{k:"怎么用",h:"三个入口，别硬啃 548",body:'<ul><li><a href="TOP50.md"><strong>TOP50</strong></a>：先读最好的 50 个</li><li><a href="metadata.csv"><strong>metadata.csv</strong></a>：按层、语言、体量筛</li><li><a href="template/README.md"><strong>template/</strong></a>：拼好的，能直接跑</li></ul>'},
+{k:"收尾",h:"一句话带走",body:'<p style="font-size:23px"><strong>收藏是矿山，模板是炼钢。</strong></p><p>你已打勾 <strong id="finalGot">0</strong> 张。全勾的人，回去跑一遍 template 的测试，就算真懂了。</p>'}
+];
+var deck=document.getElementById("deck"),dots=document.getElementById("dots");
+deck.innerHTML=CARDS.map(function(c,i){
+  return '<article class="card" id="card-'+i+'" aria-label="第 '+(i+1)+' 张"><span class="kick">'+c.k+" · "+(i+1)+"/"+CARDS.length+'</span><h2>'+c.h+"</h2>"+c.body+(c.d?"<details><summary>展开细节（可不看）</summary><p>"+c.d+"</p></details>":"")+"</article>";
+}).join("");
+dots.innerHTML=CARDS.map(function(_,i){return '<button type="button" data-go="'+i+'" aria-label="跳到第 '+(i+1)+' 张">'+(i+1)+"</button>";}).join("");
+var cur=0,got=new Set();
+var pfill=document.getElementById("pfill"),pcount=document.getElementById("pcount"),pgot=document.getElementById("pgot"),gotBtn=document.getElementById("gotBtn");
+function render(){
+  document.querySelectorAll(".card").forEach(function(el,i){el.classList.toggle("on",i===cur);});
+  dots.querySelectorAll("button").forEach(function(b,i){b.classList.toggle("cur",i===cur);b.classList.toggle("got",got.has(i));});
+  pfill.style.width=Math.round(((cur+1)/CARDS.length)*100)+"%";
+  pcount.textContent="第 "+(cur+1)+" / "+CARDS.length+" 张";
+  pgot.textContent="已懂 "+got.size;
+  gotBtn.setAttribute("aria-pressed",got.has(cur)?"true":"false");
+  gotBtn.textContent=got.has(cur)?"已懂，取消勾":"懂了，打勾";
+  document.getElementById("prevBtn").disabled=cur===0;
+  document.getElementById("nextBtn").textContent=cur===CARDS.length-1?"回到第一张 ↺":"下一张 →";
+  var fg=document.getElementById("finalGot"); if(fg) fg.textContent=got.size+" / "+CARDS.length;
+}
+function go(i){cur=(i+CARDS.length)%CARDS.length;render();}
+document.getElementById("prevBtn").addEventListener("click",function(){go(cur-1);});
+document.getElementById("nextBtn").addEventListener("click",function(){go(cur+1);});
+document.getElementById("resetBtn").addEventListener("click",function(){got.clear();go(0);});
+gotBtn.addEventListener("click",function(){got.has(cur)?got.delete(cur):got.add(cur);render();});
+dots.addEventListener("click",function(e){var b=e.target.closest("button[data-go]");if(b)go(+b.dataset.go);});
+document.addEventListener("keydown",function(e){
+  if(document.body.dataset.mode!=="adhd")return;
+  if(e.key==="ArrowRight")go(cur+1); else if(e.key==="ArrowLeft")go(cur-1);
+});
+render();
+
+var modeBtns=document.querySelectorAll(".switch button");
+function setMode(m){
+  document.body.dataset.mode=m;
+  modeBtns.forEach(function(b){b.setAttribute("aria-pressed",b.dataset.mode===m?"true":"false");});
+  try{localStorage.setItem("acs-explainer-mode",m);}catch(e){}
+  if(m==="adhd"){var d=document.getElementById("adhd");if(d)d.scrollIntoView();}
+  else window.scrollTo({top:0});
+}
+modeBtns.forEach(function(b){b.addEventListener("click",function(){setMode(b.dataset.mode);});});
+try{var saved=localStorage.getItem("acs-explainer-mode");if(saved==="adhd"||saved==="normal")setMode(saved);}catch(e){}
+})();
+</script>
+</body>
+</html>
+

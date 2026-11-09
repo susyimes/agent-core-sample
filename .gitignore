@@ -2,3 +2,5 @@
 _staging/
 _staging2/
 _staging3/
+__pycache__/
+*.pyc
